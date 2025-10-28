@@ -1,0 +1,687 @@
+diff --git a/.gitignore b/.gitignore
+index c8fc3d2..5972616 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -24,4 +24,11 @@
+ .history/
+ .vscode/
+ build/
+-output/
+\ No newline at end of file
++output/
++lib/
++lib64
++include/
++bin/
++data/
++share
++pyvenv.cfg
+diff --git a/100_epoc_eval.txt b/100_epoc_eval.txt
+new file mode 100644
+index 0000000..bca58cd
+--- /dev/null
++++ b/100_epoc_eval.txt
+@@ -0,0 +1,61 @@
++2025-10-26 03:08:23,386   INFO  Car AP@0.70, 0.70, 0.70:
++bbox AP:94.8563, 89.9356, 89.1981
++bev  AP:90.1542, 88.0813, 86.8269
++3d   AP:88.8727, 78.7581, 77.5707
++aos  AP:94.83, 89.84, 88.99
++Car AP_R40@0.70, 0.70, 0.70:
++bbox AP:97.2407, 94.4192, 91.9545
++bev  AP:94.0249, 90.2180, 87.8680
++3d   AP:91.0181, 81.9934, 79.0512
++aos  AP:97.22, 94.29, 91.72
++Car AP@0.70, 0.50, 0.50:
++bbox AP:94.8563, 89.9356, 89.1981
++bev  AP:94.9674, 93.8945, 89.5522
++3d   AP:94.9338, 90.0849, 89.4613
++aos  AP:94.83, 89.84, 88.99
++Car AP_R40@0.70, 0.50, 0.50:
++bbox AP:97.2407, 94.4192, 91.9545
++bev  AP:97.5906, 96.1882, 94.3382
++3d   AP:97.5690, 94.8057, 94.1278
++aos  AP:97.22, 94.29, 91.72
++Pedestrian AP@0.50, 0.50, 0.50:
++bbox AP:73.7981, 71.4876, 68.1333
++bev  AP:64.2438, 58.9174, 55.6927
++3d   AP:60.1316, 55.4148, 50.1194
++aos  AP:67.40, 64.37, 60.97
++Pedestrian AP_R40@0.50, 0.50, 0.50:
++bbox AP:74.8301, 71.9336, 68.3971
++bev  AP:64.1089, 58.8078, 54.4359
++3d   AP:59.6539, 54.1624, 49.1391
++*.com
++aos  AP:67.74, 64.14, 60.44
++Pedestrian AP@0.50, 0.25, 0.25:
++bbox AP:73.7981, 71.4876, 68.1333
++bev  AP:80.1680, 76.7832, 73.3222
++3d   AP:80.1119, 76.4423, 73.0291
++aos  AP:67.40, 64.37, 60.97
++Pedestrian AP_R40@0.50, 0.25, 0.25:
++bbox AP:74.8301, 71.9336, 68.3971
++bev  AP:81.3207, 78.0012, 74.5084
++3d   AP:81.2617, 77.7284, 74.3000
++aos  AP:67.74, 64.14, 60.44
++Cyclist AP@0.50, 0.50, 0.50:
++bbox AP:94.0865, 78.9474, 74.5521
++bev  AP:85.7154, 71.8843, 67.1423
++3d   AP:85.4620, 70.2414, 64.9871
++aos  AP:93.75, 78.05, 73.73
++Cyclist AP_R40@0.50, 0.50, 0.50:
++bbox AP:95.2695, 80.3092, 75.8676
++bev  AP:90.0550, 72.0662, 67.5868
++3d   AP:89.7267, 70.3792, 65.8324
++aos  AP:94.95, 79.37, 74.95
++Cyclist AP@0.50, 0.25, 0.25:
++bbox AP:94.0865, 78.9474, 74.5521
++bev  AP:92.3812, 75.7659, 71.3453
++3d   AP:92.3812, 75.7659, 71.3453
++aos  AP:93.75, 78.05, 73.73
++Cyclist AP_R40@0.50, 0.25, 0.25:
++bbox AP:95.2695, 80.3092, 75.8676
++bev  AP:93.6810, 76.7769, 72.4133
++3d   AP:93.6810, 76.7769, 72.4133
++aos  AP:94.95, 79.37, 74.95
+diff --git a/README_AWS.MD b/README_AWS.MD
+new file mode 100644
+index 0000000..b73452e
+--- /dev/null
++++ b/README_AWS.MD
+@@ -0,0 +1,5 @@
++1. installation may take a couple of tries. The main complication here is that the newer version of pytorch is not compabiel with this code. Hence there is a diff file provided which modified about 10 cpp files to resolve the cuda version difference
++2. dynamic voxel allocation is buggy in the spconv, data_processor.py file is modified to resolve the spconv2 issue. 
++3. spconv2 also introdce error in voxet.py file, this is also resolved 
++4. evaluation result is pasted in 100_epoc_eval.txt
++5. tools/cfgs/dataset_configs/kitti_dataset.yaml is modified to reflect the data path. 
+diff --git a/debug_voxel.py b/debug_voxel.py
+new file mode 100644
+index 0000000..dfb1d6c
+--- /dev/null
++++ b/debug_voxel.py
+@@ -0,0 +1,95 @@
++#!/usr/bin/env python3
++"""
++Debug script to isolate the VoxelGenerator issue
++"""
++
++import numpy as np
++
++def test_point2voxel_cpu3d():
++    """Test Point2VoxelCPU3d with different parameter combinations"""
++    
++    try:
++        from spconv.utils import Point2VoxelCPU3d
++        print("✓ Successfully imported Point2VoxelCPU3d")
++    except Exception as e:
++        print(f"✗ Failed to import Point2VoxelCPU3d: {e}")
++        return
++    
++    # Test parameters
++    vsize_xyz = [0.32, 0.32, 4.0]
++    coors_range_xyz = [0.0, -39.68, -3.0, 69.12, 39.68, 1.0]
++    num_point_features = 4
++    
++    # Test different parameter combinations
++    test_cases = [
++        {"max_num_points_per_voxel": 5, "max_num_voxels": 1000, "name": "Small safe"},
++        {"max_num_points_per_voxel": 32, "max_num_voxels": 8000, "name": "Medium"},
++        {"max_num_points_per_voxel": 64, "max_num_voxels": 16000, "name": "Large"},
++        {"max_num_points_per_voxel": -1, "max_num_voxels": 16000, "name": "Dynamic (-1)"},
++    ]
++    
++    for i, case in enumerate(test_cases):
++        print(f"\n{i+1}. Testing {case['name']}:")
++        print(f"   max_num_points_per_voxel: {case['max_num_points_per_voxel']}")
++        print(f"   max_num_voxels: {case['max_num_voxels']}")
++        
++        try:
++            voxel_gen = Point2VoxelCPU3d(
++                vsize_xyz=vsize_xyz,
++                coors_range_xyz=coors_range_xyz,
++                num_point_features=num_point_features,
++                max_num_points_per_voxel=case['max_num_points_per_voxel'],
++                max_num_voxels=case['max_num_voxels']
++            )
++            print(f"   ✓ SUCCESS - VoxelGenerator created")
++            
++            # Test with small point cloud
++            test_points = np.random.rand(100, 4).astype(np.float32)
++            test_points[:, :3] = test_points[:, :3] * [69.12, 79.36, 4.0] + [0, -39.68, -3]
++            
++            result = voxel_gen.point_to_voxel(test_points)
++            print(f"   ✓ point_to_voxel() worked")
++            
++        except Exception as e:
++            print(f"   ✗ FAILED - {type(e).__name__}: {e}")
++            if "bad_alloc" in str(e):
++                print(f"   → This is the std::bad_alloc error!")
++
++def test_parameter_types():
++    """Test if parameter types matter"""
++    from spconv.utils import Point2VoxelCPU3d
++    
++    print("\nTesting parameter types:")
++    
++    # Test with different types
++    vsize_xyz_list = [0.32, 0.32, 4.0]  # list
++    vsize_xyz_array = np.array([0.32, 0.32, 4.0], dtype=np.float32)  # numpy array
++    
++    coors_range_list = [0.0, -39.68, -3.0, 69.12, 39.68, 1.0]  # list  
++    coors_range_array = np.array([0.0, -39.68, -3.0, 69.12, 39.68, 1.0], dtype=np.float32)  # numpy array
++    
++    combinations = [
++        ("list, list", vsize_xyz_list, coors_range_list),
++        ("array, array", vsize_xyz_array, coors_range_array),
++        ("list, array", vsize_xyz_list, coors_range_array),
++        ("array, list", vsize_xyz_array, coors_range_list),
++    ]
++    
++    for name, vsize, crange in combinations:
++        try:
++            print(f"  {name}: ", end="")
++            voxel_gen = Point2VoxelCPU3d(
++                vsize_xyz=vsize,
++                coors_range_xyz=crange,
++                num_point_features=4,
++                max_num_points_per_voxel=32,
++                max_num_voxels=1000
++            )
++            print("✓ SUCCESS")
++        except Exception as e:
++            print(f"✗ FAILED - {e}")
++
++if __name__ == "__main__":
++    print("=== Debugging Point2VoxelCPU3d ===")
++    test_point2voxel_cpu3d()
++    test_parameter_types()
+diff --git a/pcdet/datasets/processor/data_processor.py b/pcdet/datasets/processor/data_processor.py
+index e334278..d80d73b 100644
+--- a/pcdet/datasets/processor/data_processor.py
++++ b/pcdet/datasets/processor/data_processor.py
+@@ -24,6 +24,13 @@ class VoxelGeneratorWrapper():
+             except:
+                 from spconv.utils import Point2VoxelCPU3d as VoxelGenerator
+                 self.spconv_ver = 2
++        # Handle dynamic voxelization (-1) which is problematic in spconv 2.x
++        if self.spconv_ver == 2 and max_num_points_per_voxel == -1:
++            print(
++                "Warning: Dynamic voxelization (max_num_points_per_voxel=-1) is not stable in spconv 2.x"
++            )
++            print("Falling back to max_num_points_per_voxel=64 for compatibility")
++            max_num_points_per_voxel = 64
+ 
+         if self.spconv_ver == 1:
+             self._voxel_generator = VoxelGenerator(
+diff --git a/pcdet/models/backbones_3d/vfe/voxset.py b/pcdet/models/backbones_3d/vfe/voxset.py
+index 2ed9481..03206e4 100644
+--- a/pcdet/models/backbones_3d/vfe/voxset.py
++++ b/pcdet/models/backbones_3d/vfe/voxset.py
+@@ -6,7 +6,8 @@ from .vfe_template import VFETemplate
+ import torch_scatter
+ 
+ import math
+-import spconv
++# import spconv
++from ....utils.spconv_utils import spconv
+ 
+ 
+ class MLP(nn.Module):
+diff --git a/pcdet/models/detectors/detector3d_template.py b/pcdet/models/detectors/detector3d_template.py
+index b971807..2add50d 100644
+--- a/pcdet/models/detectors/detector3d_template.py
++++ b/pcdet/models/detectors/detector3d_template.py
+@@ -364,7 +364,7 @@ class Detector3DTemplate(nn.Module):
+ 
+         logger.info('==> Loading parameters from checkpoint %s to %s' % (filename, 'CPU' if to_cpu else 'GPU'))
+         loc_type = torch.device('cpu') if to_cpu else None
+-        checkpoint = torch.load(filename, map_location=loc_type)
++        checkpoint = torch.load(filename, map_location=loc_type, weights_only=False)
+         model_state_disk = checkpoint['model_state']
+ 
+         version = checkpoint.get("version", None)
+@@ -385,7 +385,7 @@ class Detector3DTemplate(nn.Module):
+ 
+         logger.info('==> Loading parameters from checkpoint %s to %s' % (filename, 'CPU' if to_cpu else 'GPU'))
+         loc_type = torch.device('cpu') if to_cpu else None
+-        checkpoint = torch.load(filename, map_location=loc_type)
++        checkpoint = torch.load(filename, map_location=loc_type,weights_only=False)
+         epoch = checkpoint.get('epoch', -1)
+         it = checkpoint.get('it', 0.0)
+ 
+@@ -401,7 +401,7 @@ class Detector3DTemplate(nn.Module):
+                 src_file, ext = filename[:-4], filename[-3:]
+                 optimizer_filename = '%s_optim.%s' % (src_file, ext)
+                 if os.path.exists(optimizer_filename):
+-                    optimizer_ckpt = torch.load(optimizer_filename, map_location=loc_type)
++                    optimizer_ckpt = torch.load(optimizer_filename, map_location=loc_type,weights_only=False)
+                     optimizer.load_state_dict(optimizer_ckpt['optimizer_state'])
+ 
+         if 'version' in checkpoint:
+diff --git a/pcdet/ops/pointnet2/pointnet2_batch/src/ball_query.cpp b/pcdet/ops/pointnet2/pointnet2_batch/src/ball_query.cpp
+index 67784c6..5d29999 100644
+--- a/pcdet/ops/pointnet2/pointnet2_batch/src/ball_query.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_batch/src/ball_query.cpp
+@@ -7,12 +7,12 @@ All Rights Reserved 2018.
+ 
+ #include <torch/serialize/tensor.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ #include <cuda.h>
+ #include <cuda_runtime_api.h>
+ #include "ball_query_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ 
+ #define CHECK_CUDA(x) do { \
+ 	  if (!x.type().is_cuda()) { \
+diff --git a/pcdet/ops/pointnet2/pointnet2_batch/src/group_points.cpp b/pcdet/ops/pointnet2/pointnet2_batch/src/group_points.cpp
+index 5565700..653f75e 100644
+--- a/pcdet/ops/pointnet2/pointnet2_batch/src/group_points.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_batch/src/group_points.cpp
+@@ -9,10 +9,10 @@ All Rights Reserved 2018.
+ #include <cuda.h>
+ #include <cuda_runtime_api.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ #include "group_points_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ 
+ 
+ int group_points_grad_wrapper_fast(int b, int c, int n, int npoints, int nsample, 
+diff --git a/pcdet/ops/pointnet2/pointnet2_batch/src/interpolate.cpp b/pcdet/ops/pointnet2/pointnet2_batch/src/interpolate.cpp
+index c2496e8..b87523b 100644
+--- a/pcdet/ops/pointnet2/pointnet2_batch/src/interpolate.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_batch/src/interpolate.cpp
+@@ -7,7 +7,7 @@ All Rights Reserved 2018.
+ 
+ #include <torch/serialize/tensor.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ #include <math.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -15,7 +15,7 @@ All Rights Reserved 2018.
+ #include <cuda_runtime_api.h>
+ #include "interpolate_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ 
+ 
+ void three_nn_wrapper_fast(int b, int n, int m, at::Tensor unknown_tensor, 
+diff --git a/pcdet/ops/pointnet2/pointnet2_batch/src/sampling.cpp b/pcdet/ops/pointnet2/pointnet2_batch/src/sampling.cpp
+index ee65986..d6d1ec5 100644
+--- a/pcdet/ops/pointnet2/pointnet2_batch/src/sampling.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_batch/src/sampling.cpp
+@@ -8,11 +8,11 @@ All Rights Reserved 2018.
+ #include <torch/serialize/tensor.h>
+ #include <ATen/cuda/CUDAContext.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ 
+ #include "sampling_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ 
+ 
+ int gather_points_wrapper_fast(int b, int c, int n, int npoints, 
+diff --git a/pcdet/ops/pointnet2/pointnet2_stack/src/ball_query.cpp b/pcdet/ops/pointnet2/pointnet2_stack/src/ball_query.cpp
+index 8ae8f23..6e1b000 100644
+--- a/pcdet/ops/pointnet2/pointnet2_stack/src/ball_query.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_stack/src/ball_query.cpp
+@@ -7,12 +7,15 @@ All Rights Reserved 2019-2020.
+ 
+ #include <torch/serialize/tensor.h>
+ #include <vector>
+-#include <THC/THC.h>
++/*
++ *  #include <THC/THC.h>
++ */
++
+ #include <cuda.h>
+ #include <cuda_runtime_api.h>
+ #include "ball_query_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ 
+ #define CHECK_CUDA(x) do { \
+   if (!x.type().is_cuda()) { \
+diff --git a/pcdet/ops/pointnet2/pointnet2_stack/src/group_points.cpp b/pcdet/ops/pointnet2/pointnet2_stack/src/group_points.cpp
+index 4f48b6d..a075cd1 100644
+--- a/pcdet/ops/pointnet2/pointnet2_stack/src/group_points.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_stack/src/group_points.cpp
+@@ -9,10 +9,10 @@ All Rights Reserved 2019-2020.
+ #include <cuda.h>
+ #include <cuda_runtime_api.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ #include "group_points_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ #define CHECK_CUDA(x) do { \
+   if (!x.type().is_cuda()) { \
+     fprintf(stderr, "%s must be CUDA tensor at %s:%d\n", #x, __FILE__, __LINE__); \
+@@ -67,4 +67,4 @@ int group_points_wrapper_stack(int B, int M, int C, int nsample,
+ 
+     group_points_kernel_launcher_stack(B, M, C, nsample, features, features_batch_cnt, idx, idx_batch_cnt, out);
+     return 1;
+-}
+\ No newline at end of file
++}
+diff --git a/pcdet/ops/pointnet2/pointnet2_stack/src/interpolate.cpp b/pcdet/ops/pointnet2/pointnet2_stack/src/interpolate.cpp
+index 76135ee..2eed5ca 100644
+--- a/pcdet/ops/pointnet2/pointnet2_stack/src/interpolate.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_stack/src/interpolate.cpp
+@@ -7,7 +7,7 @@ All Rights Reserved 2019-2020.
+ 
+ #include <torch/serialize/tensor.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ #include <math.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -15,7 +15,7 @@ All Rights Reserved 2019-2020.
+ #include <cuda_runtime_api.h>
+ #include "interpolate_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ 
+ #define CHECK_CUDA(x) do { \
+   if (!x.type().is_cuda()) { \
+@@ -107,4 +107,4 @@ void three_interpolate_grad_wrapper_stack(at::Tensor grad_out_tensor, at::Tensor
+     
+     // printf("N=%d, channels=%d\n", N, channels);
+     three_interpolate_grad_kernel_launcher_stack(N, channels, grad_out, idx, weight, grad_features);
+-}
+\ No newline at end of file
++}
+diff --git a/pcdet/ops/pointnet2/pointnet2_stack/src/sampling.cpp b/pcdet/ops/pointnet2/pointnet2_stack/src/sampling.cpp
+index 41d234b..a98253a 100644
+--- a/pcdet/ops/pointnet2/pointnet2_stack/src/sampling.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_stack/src/sampling.cpp
+@@ -1,11 +1,11 @@
+ #include <torch/serialize/tensor.h>
+ #include <ATen/cuda/CUDAContext.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ 
+ #include "sampling_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ #define CHECK_CUDA(x) do { \
+   if (!x.type().is_cuda()) { \
+     fprintf(stderr, "%s must be CUDA tensor at %s:%d\n", #x, __FILE__, __LINE__); \
+diff --git a/pcdet/ops/pointnet2/pointnet2_stack/src/vector_pool.cpp b/pcdet/ops/pointnet2/pointnet2_stack/src/vector_pool.cpp
+index 308beea..e4e56cd 100644
+--- a/pcdet/ops/pointnet2/pointnet2_stack/src/vector_pool.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_stack/src/vector_pool.cpp
+@@ -10,12 +10,12 @@ All Rights Reserved 2020.
+ 
+ #include <torch/serialize/tensor.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ #include <cuda.h>
+ #include <cuda_runtime_api.h>
+ #include "vector_pool_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ 
+ #define CHECK_CUDA(x) do { \
+   if (!x.type().is_cuda()) { \
+diff --git a/pcdet/ops/pointnet2/pointnet2_stack/src/voxel_query.cpp b/pcdet/ops/pointnet2/pointnet2_stack/src/voxel_query.cpp
+index 735fe5e..e006f50 100644
+--- a/pcdet/ops/pointnet2/pointnet2_stack/src/voxel_query.cpp
++++ b/pcdet/ops/pointnet2/pointnet2_stack/src/voxel_query.cpp
+@@ -1,6 +1,6 @@
+ #include <torch/serialize/tensor.h>
+ #include <vector>
+-#include <THC/THC.h>
++//#include <THC/THC.h>
+ #include <math.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -8,7 +8,7 @@
+ #include <cuda_runtime_api.h>
+ #include "voxel_query_gpu.h"
+ 
+-extern THCState *state;
++//extern THCState *state;
+ 
+ #define CHECK_CUDA(x) do { \
+   if (!x.type().is_cuda()) { \
+diff --git a/pcdet/version.py b/pcdet/version.py
+index 3d548c2..9b49b1a 100644
+--- a/pcdet/version.py
++++ b/pcdet/version.py
+@@ -1 +1 @@
+-__version__ = "0.5.2+830fba9"
++__version__ = "0.5.2+9d2b87d"
+diff --git a/requirements_cuda_aws.txt b/requirements_cuda_aws.txt
+new file mode 100644
+index 0000000..e4614c6
+--- /dev/null
++++ b/requirements_cuda_aws.txt
+@@ -0,0 +1,67 @@
++ccimport==0.4.4
++certifi==2025.10.5
++charset-normalizer==3.4.4
++contourpy==1.3.2
++cumm-cu120==0.4.11
++cycler==0.12.1
++easydict==1.13
++filelock==3.20.0
++fire==0.7.1
++fonttools==4.60.1
++fsspec==2025.9.0
++idna==3.11
++imageio==2.37.0
++Jinja2==3.1.6
++kiwisolver==1.4.9
++lark==1.3.0
++lazy_loader==0.4
++llvmlite==0.45.1
++MarkupSafe==3.0.3
++matplotlib==3.10.7
++mpmath==1.3.0
++networkx==3.4.2
++ninja==1.13.0
++numba==0.62.1
++numpy==2.2.6
++nvidia-cublas-cu12==12.8.4.1
++nvidia-cuda-cupti-cu12==12.8.90
++nvidia-cuda-nvrtc-cu12==12.8.93
++nvidia-cuda-runtime-cu12==12.8.90
++nvidia-cudnn-cu12==9.10.2.21
++nvidia-cufft-cu12==11.3.3.83
++nvidia-cufile-cu12==1.13.1.3
++nvidia-curand-cu12==10.3.9.90
++nvidia-cusolver-cu12==11.7.3.90
++nvidia-cusparse-cu12==12.5.8.93
++nvidia-cusparselt-cu12==0.7.1
++nvidia-nccl-cu12==2.27.5
++nvidia-nvjitlink-cu12==12.8.93
++nvidia-nvshmem-cu12==3.3.20
++nvidia-nvtx-cu12==12.8.90
++opencv-python==4.12.0.88
++packaging==25.0
++pccm==0.4.16
++pillow==12.0.0
++portalocker==3.2.0
++protobuf==6.33.0
++pybind11==3.0.1
++pyparsing==3.2.5
++python-dateutil==2.9.0.post0
++PyYAML==6.0.3
++requests==2.32.5
++scikit-image==0.25.2
++scipy==1.15.3
++SharedArray==3.2.4
++six==1.17.0
++spconv-cu120==2.3.6
++sympy==1.14.0
++tensorboardX==2.6.4
++termcolor==3.2.0
++tifffile==2025.5.10
++torch==2.9.0
++torch-scatter==2.1.2
++torchvision==0.24.0
++tqdm==4.67.1
++triton==3.5.0
++typing_extensions==4.15.0
++urllib3==2.5.0
+diff --git a/restore_cuda.sh b/restore_cuda.sh
+new file mode 100755
+index 0000000..0b3b448
+--- /dev/null
++++ b/restore_cuda.sh
+@@ -0,0 +1,25 @@
++#!/bin/bash
++# Restore original CUDA environment
++echo "Restoring original CUDA environment..."
++
++if [ -n "${OLD_CUDA_HOME:-}" ]; then
++    export CUDA_HOME="$OLD_CUDA_HOME"
++else
++    unset CUDA_HOME
++fi
++
++if [ -n "${OLD_LD_LIBRARY_PATH:-}" ]; then
++    export LD_LIBRARY_PATH="$OLD_LD_LIBRARY_PATH"
++else
++    unset LD_LIBRARY_PATH
++fi
++
++export PATH="$OLD_PATH"
++
++unset OLD_CUDA_HOME OLD_LD_LIBRARY_PATH OLD_PATH
++unset CUDA_ROOT
++
++echo "✅ Original environment restored"
++if command -v nvcc >/dev/null 2>&1; then
++    echo "   Current CUDA: $(nvcc --version | grep -o 'release [0-9]*\.[0-9]*' | cut -d' ' -f2)"
++fi
+diff --git a/setup_cuda_128.sh b/setup_cuda_128.sh
+new file mode 100755
+index 0000000..205d9e3
+--- /dev/null
++++ b/setup_cuda_128.sh
+@@ -0,0 +1,90 @@
++#!/bin/bash
++# Temporary CUDA 12.8 Environment Setup Script
++# Usage: source set_cuda11.sh
++
++echo "Setting up temporary CUDA 12.8 environment..."
++
++# Save current environment variables
++export OLD_CUDA_HOME="${CUDA_HOME:-}"
++export OLD_LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
++export OLD_PATH="${PATH}"
++
++# Common CUDA 12.8 installation paths (adjust if needed)
++CUDA_12_8_PATHS=(
++    "/usr/local/cuda-12.8"
++    "/opt/cuda-12.8" 
++    "/usr/local/cuda-11"
++    "/opt/cuda-11"
++)
++
++# Find CUDA 12.8 installation
++CUDA_PATH=""
++for path in "${CUDA_12_8_PATHS[@]}"; do
++    if [ -d "$path" ] && [ -f "$path/bin/nvcc" ]; then
++        CUDA_PATH="$path"
++        break
++    fi
++done
++
++if [ -z "$CUDA_PATH" ]; then
++    echo "❌ CUDA 12.8 not found in common locations!"
++    echo "Available CUDA installations:"
++    ls -la /usr/local/cuda* 2>/dev/null | grep -E "(cuda-11|cuda$)" || echo "  None found in /usr/local/"
++    ls -la /opt/cuda* 2>/dev/null | grep -E "(cuda-11|cuda$)" || echo "  None found in /opt/"
++    echo ""
++    echo "Please manually set CUDA_PATH:"
++    echo "  export CUDA_PATH=/path/to/your/cuda-12.8"
++    echo "  source set_cuda11.sh"
++    return 1
++fi
++
++# Set CUDA 12.8 environment variables
++export CUDA_HOME="$CUDA_PATH"
++export CUDA_ROOT="$CUDA_PATH"
++export PATH="$CUDA_PATH/bin:$PATH"
++export LD_LIBRARY_PATH="$CUDA_PATH/lib64:${LD_LIBRARY_PATH}"
++
++echo "✅ CUDA 12.8 environment configured!"
++echo "   CUDA_HOME: $CUDA_HOME"
++
++# Verify CUDA version
++if command -v nvcc >/dev/null 2>&1; then
++    echo "   CUDA Version: $(nvcc --version | grep -o 'release [0-9]*\.[0-9]*' | cut -d' ' -f2)"
++else
++    echo "⚠️  Warning: nvcc not found in PATH"
++fi
++
++echo ""
++echo "To restore original environment, run:"
++echo "  source restore_cuda.sh"
++
++# Create restore script
++cat > restore_cuda.sh << 'EOF'
++#!/bin/bash
++# Restore original CUDA environment
++echo "Restoring original CUDA environment..."
++
++if [ -n "${OLD_CUDA_HOME:-}" ]; then
++    export CUDA_HOME="$OLD_CUDA_HOME"
++else
++    unset CUDA_HOME
++fi
++
++if [ -n "${OLD_LD_LIBRARY_PATH:-}" ]; then
++    export LD_LIBRARY_PATH="$OLD_LD_LIBRARY_PATH"
++else
++    unset LD_LIBRARY_PATH
++fi
++
++export PATH="$OLD_PATH"
++
++unset OLD_CUDA_HOME OLD_LD_LIBRARY_PATH OLD_PATH
++unset CUDA_ROOT
++
++echo "✅ Original environment restored"
++if command -v nvcc >/dev/null 2>&1; then
++    echo "   Current CUDA: $(nvcc --version | grep -o 'release [0-9]*\.[0-9]*' | cut -d' ' -f2)"
++fi
++EOF
++
++chmod +x restore_cuda.sh
+diff --git a/tools/cfgs/dataset_configs/kitti_dataset.yaml b/tools/cfgs/dataset_configs/kitti_dataset.yaml
+index 8e05c02..3f11a3f 100644
+--- a/tools/cfgs/dataset_configs/kitti_dataset.yaml
++++ b/tools/cfgs/dataset_configs/kitti_dataset.yaml
+@@ -1,5 +1,5 @@
+ DATASET: 'KittiDataset'
+-DATA_PATH: '/data0/billyhe/KITTI'
++DATA_PATH: '/home/ubuntu/repos/VoxSeT/data/kitti'
+ 
+ POINT_CLOUD_RANGE: [0, -40, -3, 70.4, 40, 1]
+ 
